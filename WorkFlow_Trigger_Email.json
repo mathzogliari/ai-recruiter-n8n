@@ -1,0 +1,886 @@
+{
+  "name": "Wf1 Trigger Email",
+  "nodes": [
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyX",
+              "value": 1,
+              "unit": "minutes"
+            }
+          ]
+        },
+        "simple": false,
+        "maxResults": 50,
+        "filters": {
+          "includeSpamTrash": false,
+          "q": "vaga dev senior",
+          "readStatus": "both"
+        },
+        "options": {
+          "dataPropertyAttachmentsPrefixName": "attachment_",
+          "downloadAttachments": true
+        }
+      },
+      "id": "1af268af-d845-4197-8957-5bffae8d3e4c",
+      "name": "Monitor Resume Emails",
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        -1840,
+        128
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "AtJx6kFgCXTodihM",
+          "name": "Gmail OAuth2 API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "value": "2jV3pDsJH4oZr9cl",
+          "mode": "list",
+          "cachedResultName": "candidatos",
+          "cachedResultUrl": "/projects/TRkqatWbhd2gICdj/datatables/2jV3pDsJH4oZr9cl"
+        },
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "email",
+              "keyValue": "={{$('Monitor Resume Emails').item.json.from?.value?.[0]?.address ?? $('Monitor Resume Emails').item.json.from}}"
+            }
+          ]
+        },
+        "returnAll": true
+      },
+      "id": "72902bd1-db9d-484a-a9ce-c0e8d77938a5",
+      "name": "Check Duplicate Candidate",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        -1328,
+        128
+      ],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.id }}",
+              "rightValue": false,
+              "operator": {
+                "type": "boolean",
+                "operation": "notExists",
+                "singleValue": true
+              },
+              "id": "9c8ff8b7-6d70-4ac6-b07c-4be45a40eb72"
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "8c9e282f-b76f-41b5-8beb-785b18d08b23",
+      "name": "Filter Duplicates",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.3,
+      "position": [
+        -1152,
+        128
+      ]
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-2.5-flash-lite",
+          "mode": "list",
+          "cachedResultName": "models/gemini-2.5-flash-lite"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "=Você é um especialista em análise de currículos para vagas de tecnologia.\n\nAnalise o currículo abaixo e retorne APENAS um JSON válido (sem markdown, sem explicações) com a seguinte estrutura:\n\n{\n  \"aprovado\": true ou false,\n  \"nome\": \"nome completo do candidato\",\n  \"idade\": número inteiro com a idade do candidato. Se não informado, retorne 0,\n  \"ingles\": \"básico/médio/avançado/fluente\",\n  \"anos_experiencia\": número inteiro. Se não informado, retorne 0,\n  \"skills\": [\"lista\", \"de\", \"tecnologias\"],\n  \"motivo\": \"explicação da aprovação ou rejeição\",\n  \"score\": número inteiro de 0 a 100\n}\n\nCRITÉRIOS OBRIGATÓRIOS para aprovação (todos devem ser atendidos):\n1. Idade acima de {{ $('Buscar Criterios').item.json.idade_minima }} anos\n2. Inglês {{ $('Buscar Criterios').item.json.ingles_minimo }} ou superior\n3. Pelo menos {{ $('Buscar Criterios').item.json.experiencia_minima }} anos de experiência em desenvolvimento\n4. Conhecimento nas seguintes skills: {{ $('Buscar Criterios').item.json.skills_obrigatorias }}\n\nSe TODOS os critérios forem atendidos, aprovado = true.\nSe QUALQUER critério falhar, aprovado = false e explique o motivo.\n\nCÁLCULO DO SCORE (0 a 100):\n- Idade acima de {{ $('Buscar Criterios').item.json.idade_minima }} anos: 15 pontos\n- Inglês básico: 5 pontos / médio: 10 pontos / avançado: 15 pontos / fluente: 20 pontos\n- Cada ano de experiência: 3 pontos (máximo 20 pontos)\n- Conhecimento em cada skill obrigatória: pontos divididos igualmente até 45 pontos\n\nCURRÍCULO:\n{{ $('Parse OCR Response').item.json.text }}"
+            }
+          ]
+        },
+        "jsonOutput": true,
+        "builtInTools": {},
+        "options": {
+          "maxOutputTokens": 1000,
+          "temperature": 0.1
+        }
+      },
+      "id": "e9f4826e-f8f6-43c6-928e-f3f8f7bea897",
+      "name": "Analyze Resume with Gemini",
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1.2,
+      "position": [
+        -1840,
+        368
+      ],
+      "credentials": {
+        "googlePalmApi": {
+          "id": "8UE6HIqTGH0wsarc",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const parts = $input.item.json.content?.parts;\nconst geminiOutput = parts?.[0]?.text ?? \n  $input.item.json.text ?? \n  JSON.stringify($input.item.json);\n\nlet analysis;\ntry {\n  const clean = geminiOutput.replace(/```json|```/g, '').trim();\n  analysis = JSON.parse(clean);\n} catch (e) {\n  const jsonMatch = geminiOutput.match(/{[\\s\\S]*}/);\n  if (jsonMatch) {\n    analysis = JSON.parse(jsonMatch[0]);\n  } else {\n    analysis = {\n      aprovado: false,\n      nome: 'Desconhecido',\n      idade: 'N/A',\n      ingles: 'N/A',\n      anos_experiencia: '0',\n      skills: [],\n      motivo: 'Erro ao processar resposta da IA'\n    };\n  }\n}\n\nconst emailData = $('Monitor Resume Emails').item.json;\n\nreturn {\n  ...analysis,\n  email: emailData.from?.value?.[0]?.address ?? emailData.from?.address ?? emailData.from ?? '',\n  subject: emailData.subject,\n  emailId: emailData.id,\n  receivedDate: (() => {\n  const d = new Date(emailData.date);\n  const offset = -3 * 60; // UTC-3 Brasília\n  const local = new Date(d.getTime() + offset * 60000);\n  const dia = String(local.getUTCDate()).padStart(2, '0');\n  const mes = String(local.getUTCMonth() + 1).padStart(2, '0');\n  const ano = local.getUTCFullYear();\n  return `${dia}-${mes}-${ano}`;\n})()\n};"
+      },
+      "id": "756fd575-1c98-42bf-85be-9fe9813d67a5",
+      "name": "Parse Gemini Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1552,
+        368
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.aprovado }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              },
+              "id": "57474bd4-d97f-4796-affa-8a8e375e5e53"
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "31b8434b-494b-49b1-9186-2a705e8061e7",
+      "name": "Check Approval",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -1376,
+        368
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "SEU_CHAT_ID_TELEGRAM",
+        "text": "=🚀 *Novo candidato aprovado*\n\n👤 *Nome:* {{ $json.nome }}\n🎂 *Idade:* {{ $json.idade }} anos\n💼 *Experiência:* {{ $json.anos_experiencia }} anos\n🌎 *Inglês:* {{ $json.ingles }}\n🛠 *Skills:* {{ $json.skills.join(\", \") }}\n✅ *Motivo:* {{ $json.motivo }}\n📊 *Score:* {{ $json.score }}\n\n📧 *Email:* {{ $json.email }}\n📋 *Assunto:* {{ $json.subject }}\n📅 *Recebido em:* {{ $json.receivedDate }}",
+        "additionalFields": {
+          "appendAttribution": false,
+          "disable_notification": false,
+          "parse_mode": "Markdown"
+        }
+      },
+      "id": "9e2aa514-345f-4361-9ebe-9c805c3f287c",
+      "name": "Send to Telegram",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        -1168,
+        352
+      ],
+      "webhookId": "441fc411-fd3e-44e6-b501-ea82c8bdda60",
+      "credentials": {
+        "telegramApi": {
+          "id": "X9sX65mqNk8ybcV2",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "10nLz6AtPbr1cDiwuAkJz57WjiALKbfmluGNnSZSoA4U",
+          "mode": "list",
+          "cachedResultName": "vaga dev snr",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/10nLz6AtPbr1cDiwuAkJz57WjiALKbfmluGNnSZSoA4U/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "case 1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/10nLz6AtPbr1cDiwuAkJz57WjiALKbfmluGNnSZSoA4U/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "nome": "={{ $(\"Parse Gemini Response\").item.json.nome }}",
+            "email": "={{ $(\"Parse Gemini Response\").item.json.email }}",
+            "idade": "={{ $(\"Parse Gemini Response\").item.json.idade }}",
+            "ingles": "={{ $(\"Parse Gemini Response\").item.json.ingles }}",
+            "experiencia": "={{ $(\"Parse Gemini Response\").item.json.anos_experiencia }}",
+            "skills": "={{ $(\"Parse Gemini Response\").item.json.skills.join(', ') }}",
+            "aprovado": "={{ $(\"Parse Gemini Response\").item.json.aprovado }}",
+            "score": "={{ $(\"Parse Gemini Response\").item.json.score }}",
+            "data_envio": "={{ $(\"Parse Gemini Response\").item.json.receivedDate }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "nome",
+              "displayName": "nome",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "email",
+              "displayName": "email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "idade",
+              "displayName": "idade",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ingles",
+              "displayName": "ingles",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "experiencia",
+              "displayName": "experiencia",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "skills",
+              "displayName": "skills",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "aprovado",
+              "displayName": "aprovado",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "score",
+              "displayName": "score",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "data_envio",
+              "displayName": "data_envio",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "7133a858-028f-414a-adfe-bfd6ae5e39a6",
+      "name": "Save to Google Sheets",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -992,
+        352
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "kmCETi6F4YyGPeb1",
+          "name": "Google Sheets OAuth2 API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "dataTableId": {
+          "__rl": true,
+          "value": "2jV3pDsJH4oZr9cl",
+          "mode": "list",
+          "cachedResultName": "candidatos",
+          "cachedResultUrl": "/projects/TRkqatWbhd2gICdj/datatables/2jV3pDsJH4oZr9cl"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "aprovado": "={{ $(\"Parse Gemini Response\").item.json.aprovado }}",
+            "idade": "={{ $(\"Parse Gemini Response\").item.json.idade }}",
+            "experiencia": "={{ $(\"Parse Gemini Response\").item.json.anos_experiencia }}",
+            "nome": "={{ $(\"Parse Gemini Response\").item.json.nome }}",
+            "email": "={{ $(\"Parse Gemini Response\").item.json.email }}",
+            "ingles": "={{ $(\"Parse Gemini Response\").item.json.ingles }}",
+            "skills": "={{ $(\"Parse Gemini Response\").item.json.skills.join(', ') }}",
+            "score": "={{ $(\"Parse Gemini Response\").item.json.score }}",
+            "data_envio": "={{ $(\"Parse Gemini Response\").item.json.receivedDate }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "nome",
+              "displayName": "nome",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "email",
+              "displayName": "email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "idade",
+              "displayName": "idade",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "ingles",
+              "displayName": "ingles",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "experiencia",
+              "displayName": "experiencia",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "skills",
+              "displayName": "skills",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "aprovado",
+              "displayName": "aprovado",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "boolean",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "score",
+              "displayName": "score",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "data_envio",
+              "displayName": "data_envio",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "b747572b-a03b-4ab3-a66d-2cbe39e7317d",
+      "name": "Save to DataTable",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        -816,
+        352
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "upsert",
+        "dataTableId": {
+          "__rl": true,
+          "value": "LMCS0WnJyiALbzEY",
+          "mode": "list",
+          "cachedResultName": "rejeitados",
+          "cachedResultUrl": "/projects/TRkqatWbhd2gICdj/datatables/LMCS0WnJyiALbzEY"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "email",
+              "keyValue": "={{ $json.email }}"
+            }
+          ]
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "nome": "={{$(\"Parse Gemini Response\").item.json.nome}}",
+            "ingles": "={{$(\"Parse Gemini Response\").item.json.ingles}}",
+            "email": "={{$(\"Parse Gemini Response\").item.json.email }}",
+            "idade": "={{ $(\"Parse Gemini Response\").item.json.idade }}",
+            "experiencia": "={{ $(\"Parse Gemini Response\").item.json.anos_experiencia }}",
+            "skills": "={{ $(\"Parse Gemini Response\").item.json.skills.join(', ') }}",
+            "motivo": "={{$(\"Parse Gemini Response\").item.json.motivo}}",
+            "score": "={{ $(\"Parse Gemini Response\").item.json.score }}",
+            "data_envio": "={{ $(\"Parse Gemini Response\").item.json.receivedDate }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "nome",
+              "displayName": "nome",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "email",
+              "displayName": "email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "idade",
+              "displayName": "idade",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "ingles",
+              "displayName": "ingles",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "experiencia",
+              "displayName": "experiencia",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "skills",
+              "displayName": "skills",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "motivo",
+              "displayName": "motivo",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "score",
+              "displayName": "score",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "data_envio",
+              "displayName": "data_envio",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "24e480a1-bde7-4350-bb37-1182f130b1f1",
+      "name": "Log Rejected Candidates",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        -1168,
+        592
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.ocr.space/parse/image",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "parameterType": "formBinaryData",
+              "name": "file",
+              "inputDataFieldName": "attachment_0"
+            },
+            {
+              "name": "apikey",
+              "value": "SUA_API_KEY_OCR_SPACE"
+            },
+            {
+              "name": "language",
+              "value": "por"
+            },
+            {
+              "name": "isOverlayRequired",
+              "value": "false"
+            },
+            {
+              "name": "filetype",
+              "value": "PDF"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "40fc6af1-e07d-4233-9e3f-a0a9bd0e7a8c",
+      "name": "Extract Text via OCR",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -1664,
+        128
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const ocrResponse = $input.item.json;\n\nif (ocrResponse.IsErroredOnProcessing) {\n  throw new Error('OCR falhou: ' + (ocrResponse.ErrorMessage || 'Erro desconhecido'));\n}\n\nconst parsedText = ocrResponse.ParsedResults?.[0]?.ParsedText ?? '';\n\nif (!parsedText.trim()) {\n  throw new Error('OCR nao encontrou texto no PDF. Verifique se o arquivo e valido.');\n}\n\nreturn {\n  text: parsedText\n};"
+      },
+      "id": "5bc9a9aa-76d6-487f-9221-254882cd9f10",
+      "name": "Parse OCR Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1488,
+        128
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "value": "vG7vmxfH3LQKfWk1",
+          "mode": "list",
+          "cachedResultName": "criterios",
+          "cachedResultUrl": "/projects/TRkqatWbhd2gICdj/datatables/vG7vmxfH3LQKfWk1"
+        },
+        "returnAll": true
+      },
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        -976,
+        128
+      ],
+      "id": "b083288e-505e-4267-861c-63f76378e2a5",
+      "name": "Buscar criterios"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        -960,
+        592
+      ],
+      "id": "bc437379-9035-4c63-97ba-7e590b0515a8",
+      "name": "No Operation, do nothing"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        -640,
+        352
+      ],
+      "id": "034ac21b-a847-4473-883a-bb28991ae0d1",
+      "name": "No Operation, do nothing1"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Monitor Resume Emails": {
+      "main": [
+        [
+          {
+            "node": "Extract Text via OCR",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Duplicate Candidate": {
+      "main": [
+        [
+          {
+            "node": "Filter Duplicates",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Duplicates": {
+      "main": [
+        [
+          {
+            "node": "Buscar criterios",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analyze Resume with Gemini": {
+      "main": [
+        [
+          {
+            "node": "Parse Gemini Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Gemini Response": {
+      "main": [
+        [
+          {
+            "node": "Check Approval",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Approval": {
+      "main": [
+        [
+          {
+            "node": "Send to Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log Rejected Candidates",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send to Telegram": {
+      "main": [
+        [
+          {
+            "node": "Save to Google Sheets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save to Google Sheets": {
+      "main": [
+        [
+          {
+            "node": "Save to DataTable",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Text via OCR": {
+      "main": [
+        [
+          {
+            "node": "Parse OCR Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse OCR Response": {
+      "main": [
+        [
+          {
+            "node": "Check Duplicate Candidate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar criterios": {
+      "main": [
+        [
+          {
+            "node": "Analyze Resume with Gemini",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Rejected Candidates": {
+      "main": [
+        [
+          {
+            "node": "No Operation, do nothing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save to DataTable": {
+      "main": [
+        [
+          {
+            "node": "No Operation, do nothing1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "15ca1af0-9d39-476b-a7ba-402b79504e50",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "a44884a302bfc762bfed93d141793cb9e97674954f2be220d7d0e97c74a35c24"
+  },
+  "id": "XicwscfuMBKy3TuF",
+  "tags": []
+}

@@ -1,0 +1,1226 @@
+{
+  "name": "Wf2 Assistente Telegram",
+  "nodes": [
+    {
+      "parameters": {
+        "updates": [
+          "message"
+        ],
+        "additionalFields": {}
+      },
+      "id": "06bcec93-2284-40be-b840-e467ccad2521",
+      "name": "Telegram Trigger",
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -1264,
+        320
+      ],
+      "webhookId": "61d9fcad-0c3b-4d9b-9d86-b5dff709e37b",
+      "credentials": {
+        "telegramApi": {
+          "id": "X9sX65mqNk8ybcV2",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const mensagem = $input.item.json.message?.text ?? '';\nconst chatId = $input.item.json.message?.chat?.id;\n\nlet comando = 'conversa';\n\nif (mensagem.startsWith('/criterios')) {\n  comando = 'criterios';\n} else if (mensagem.startsWith('/email')) {\n  comando = 'email';\n}\n\nreturn {\n  mensagem,\n  chatId,\n  comando\n};"
+      },
+      "id": "c0f51a9c-5ab7-483a-8ebd-c95e92f97d8e",
+      "name": "Identificar Comando",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1056,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.comando }}",
+                    "rightValue": "criterios",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "5c511abe-ee66-43e0-b841-1c4362db4be2"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.comando }}",
+                    "rightValue": "email",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "51565f6a-cae2-4a84-82af-9d76a5138947"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.comando }}",
+                    "rightValue": "conversa",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "b870cfd4-a20a-45a6-9c07-c1ae129b2026"
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "ab487377-da93-4959-8ab4-48489b705c2d",
+      "name": "Roteador",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [
+        -880,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "criterios"
+        },
+        "returnAll": true
+      },
+      "id": "1c45e8c9-7115-4aed-8653-e5b2b31fcdab",
+      "name": "Buscar Criterios Atuais",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1,
+      "position": [
+        -624,
+        32
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const mensagem = $('Identificar Comando').item.json.mensagem;\nconst chatId = $('Identificar Comando').item.json.chatId;\nconst criterios = $input.item.json;\nconst isAlteracao = mensagem.replace('/criterios', '').trim().includes(':');\nif (!isAlteracao) {\n  const texto = `⚙️ Critérios atuais:\\n\\n• Idade mínima: ${criterios.idade_minima} anos\\n• Inglês mínimo: ${criterios.ingles_minimo}\\n• Experiência mínima: ${criterios.experiencia_minima} anos\\n• Skills obrigatórias: ${criterios.skills_obrigatorias}\\n\\nComo alterar:\\nEnvie /criterios seguido das alterações:\\n\\n/criterios idade: 25\\n/criterios ingles: avancado\\n/criterios experiencia: 5\\n/criterios skills: Python,React,Node.js`;\n  return { chatId, texto, acao: 'mostrar' };\n}\nconst parte = mensagem.replace('/criterios', '').trim();\nconst linhas = parte.split('\\n');\nconst alteracoes = {};\nfor (const linha of linhas) {\n  const idx = linha.indexOf(':');\n  if (idx !== -1) {\n    const chave = linha.substring(0, idx).trim().toLowerCase();\n    const valor = linha.substring(idx + 1).trim();\n    if (chave === 'idademinima' || chave === 'idade') alteracoes['idade_minima'] = parseInt(valor);\n    else if (chave === 'inglesminimo' || chave === 'ingles') alteracoes['ingles_minimo'] = valor;\n    else if (chave === 'experienciaminima' || chave === 'experiencia') alteracoes['experiencia_minima'] = parseInt(valor);\n    else if (chave === 'skills') alteracoes['skills_obrigatorias'] = valor;\n    else alteracoes[chave] = valor;\n  }\n}\nreturn {\n  chatId,\n  alteracoes,\n  criteriosAtuais: criterios,\n  acao: 'alterar'\n};"
+      },
+      "id": "eea94713-a219-4860-9187-384052b76539",
+      "name": "Verificar Subcomando Criterios",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -416,
+        32
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.acao }}",
+                    "rightValue": "mostrar",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.acao }}",
+                    "rightValue": "alterar",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "bfd26013-2bae-4c79-9d52-3438ebea5b14",
+      "name": "Roteador Criterios",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [
+        -224,
+        32
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chatId }}",
+        "text": "={{ $json.texto }}",
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "Markdown"
+        }
+      },
+      "id": "a98d1697-cc92-42dc-ad98-0c8becd9c8c2",
+      "name": "Responder Criterios Atuais",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        -16,
+        -112
+      ],
+      "webhookId": "4e351b8f-9243-4331-b918-3e0682eed12d",
+      "credentials": {
+        "telegramApi": {
+          "id": "X9sX65mqNk8ybcV2",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "criterios"
+        },
+        "filters": {
+          "conditions": [
+            {
+              "keyValue": "1"
+            }
+          ]
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "idade_minima": "={{ $json.alteracoes.idade_minima ?? $json.criteriosAtuais.idade_minima }}",
+            "ingles_minimo": "={{ $json.alteracoes.ingles_minimo ?? $json.criteriosAtuais.ingles_minimo }}",
+            "experiencia_minima": "={{ $json.alteracoes.experiencia_minima ?? $json.criteriosAtuais.experiencia_minima }}",
+            "skills_obrigatorias": "={{ $json.alteracoes.skills_obrigatorias ?? $json.criteriosAtuais.skills_obrigatorias }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "idade_minima",
+              "displayName": "idade_minima",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "ingles_minimo",
+              "displayName": "ingles_minimo",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "experiencia_minima",
+              "displayName": "experiencia_minima",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "skills_obrigatorias",
+              "displayName": "skills_obrigatorias",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "fca388ff-074c-434b-b28f-cf0794104fcb",
+      "name": "Atualizar Criterios",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1,
+      "position": [
+        -16,
+        112
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "SEU_CHAT_ID_TELEGRAM",
+        "text": "✅ Critérios atualizados com sucesso!",
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "Markdown"
+        }
+      },
+      "id": "159072da-2808-4578-9d4f-dd70d86b918f",
+      "name": "Confirmar Atualizacao Criterios",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        208,
+        112
+      ],
+      "webhookId": "4bda255c-389b-468d-a277-8439a142440d",
+      "credentials": {
+        "telegramApi": {
+          "id": "X9sX65mqNk8ybcV2",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "candidatos"
+        },
+        "returnAll": true
+      },
+      "id": "7976965c-9655-4f89-a341-aeedf2eee390",
+      "name": "Buscar Candidatos Email",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1,
+      "position": [
+        -624,
+        352
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "rejeitados"
+        },
+        "returnAll": true
+      },
+      "id": "0fbbdba4-0eee-4042-87d1-4b6366f9da47",
+      "name": "Buscar Rejeitados Email",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1,
+      "position": [
+        -624,
+        512
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "historico"
+        },
+        "returnAll": true
+      },
+      "id": "10986f7c-da16-4be8-bab5-f98ccdcad64e",
+      "name": "Buscar Historico",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1,
+      "position": [
+        -624,
+        736
+      ],
+      "alwaysOutputData": true,
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "candidatos"
+        },
+        "returnAll": true
+      },
+      "id": "0214e04f-b55e-4ed2-9814-d8cf146e15d1",
+      "name": "Buscar Todos Candidatos",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1,
+      "position": [
+        -624,
+        896
+      ],
+      "alwaysOutputData": true,
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "rejeitados"
+        },
+        "returnAll": true
+      },
+      "id": "37068d33-f4fc-4fb6-8012-4e5c5b6fa5ad",
+      "name": "Buscar Todos Rejeitados",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1,
+      "position": [
+        -624,
+        1056
+      ],
+      "alwaysOutputData": true,
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "sessao"
+        },
+        "returnAll": true
+      },
+      "id": "faa660d9-0fd9-45ef-8a0f-d6b3d3a343c5",
+      "name": "Buscar Sessao",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1,
+      "position": [
+        -624,
+        1232
+      ],
+      "alwaysOutputData": true,
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const mensagem = $('Identificar Comando').item.json.mensagem;\nconst chatId = $('Identificar Comando').item.json.chatId;\n\nconst historico = (() => { try { return $('Buscar Historico').all().map(i => i.json).filter(i => i && Object.keys(i).length > 0); } catch(e) { return []; } })();\nconst candidatos = (() => { try { return $('Buscar Todos Candidatos').all().map(i => i.json).filter(i => i && Object.keys(i).length > 0); } catch(e) { return []; } })();\nconst rejeitados = (() => { try { return $('Buscar Todos Rejeitados').all().map(i => i.json).filter(i => i && Object.keys(i).length > 0); } catch(e) { return []; } })();\nconst sessao = (() => { try { return $('Buscar Sessao').all().map(i => i.json); } catch(e) { return []; } })();\nconst offset = parseInt(sessao.find(s => s.chave === 'offset_candidatos')?.valor ?? '0');\n\nconst historicoFormatado = historico\n  .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))\n  .slice(-10)\n  .map(h => `${h.role}: ${h.mensagem}`).join('\\n');\n\nconst dadosCandidatos = JSON.stringify(candidatos.map(c => ({\n  nome: c.nome, email: c.email, score: c.score,\n  idade: c.idade, ingles: c.ingles, experiencia: c.experiencia,\n  skills: c.skills, aprovado: true, data_envio: c.data_envio\n})));\n\nconst dadosRejeitados = JSON.stringify(rejeitados.map(c => ({\n  nome: c.nome, email: c.email, score: c.score,\n  idade: c.idade, ingles: c.ingles, experiencia: c.experiencia,\n  skills: c.skills, motivo: c.motivo, aprovado: false, data_envio: c.data_envio\n})));\n\nconst prompt = `Você é um assistente de RH inteligente. Responda em português brasileiro.\n\nDADOS DISPONÍVEIS:\nCandidatos aprovados: ${dadosCandidatos}\nCandidatos rejeitados: ${dadosRejeitados}\nOffset atual de paginação: ${offset}\n\nREGRAS:\n1. Consultas de quantidade: responda direto ex: \"Candidatos rejeitados: 34\"\n2. Listagem de candidatos: mostre nome, score, motivo (se rejeitado), data_envio\n3. Ranking (menos/mais qualificados): mostre sempre em blocos de 3 ordenado por score, pergunte \"Deseja ver mais candidatos?\" ao final\n4. Filtros por data: interprete \"hoje\", \"essa semana\", \"esse mês\", \"esse ano\" ou datas específicas no formato DD-MM-AAAA e filtre pelo campo data_envio\n5. Quando o usuário pedir \"mais\" ou \"ver mais\": mostre os próximos 3 usando o offset atual\n6. Sempre diferencie aprovados de rejeitados quando o usuário especificar\n7. Para ranking dos menos qualificados: ordene do menor score para o maior\n8. Para ranking dos mais qualificados: ordene do maior score para o menor\n9. Retorne APENAS um JSON com os campos: texto (resposta para o usuário), novoOffset (número inteiro com o novo offset para paginação)\n\nHISTÓRICO DA CONVERSA:\n${historicoFormatado}\n\nMENSAGEM ATUAL DO USUÁRIO: ${mensagem}`;\n\nreturn [{ chatId, prompt, offset, mensagem }];"
+      },
+      "id": "4ebbddc1-dfcb-4862-a0cd-88f0fe94c5ac",
+      "name": "Preparar Contexto IA",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -272,
+        976
+      ],
+      "alwaysOutputData": true,
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-2.5-flash-lite",
+          "mode": "list",
+          "cachedResultName": "models/gemini-2.5-flash-lite"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "={{ $json.prompt }}"
+            }
+          ]
+        },
+        "jsonOutput": true,
+        "options": {
+          "maxOutputTokens": 2000,
+          "temperature": 0.2
+        }
+      },
+      "id": "7e78349d-9feb-47b0-b77f-140d05672a9e",
+      "name": "Gemini Conversa",
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1,
+      "position": [
+        -128,
+        976
+      ],
+      "credentials": {
+        "googlePalmApi": {
+          "id": "8UE6HIqTGH0wsarc",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const parts = $input.item.json.content?.parts;\nconst raw = parts?.[0]?.text ?? $input.item.json.text ?? '{}';\n\nlet resultado;\ntry {\n  const clean = raw.replace(/```json|```/g, '').trim();\n  resultado = JSON.parse(clean);\n} catch(e) {\n  resultado = { texto: raw, novoOffset: 0 };\n}\n\nconst chatId = $('Preparar Contexto IA').item.json.chatId;\nconst mensagem = $('Preparar Contexto IA').item.json.mensagem;\n\nreturn {\n  chatId,\n  texto: resultado.texto ?? 'Desculpe, não entendi.',\n  novoOffset: resultado.novoOffset ?? 0,\n  mensagemUsuario: mensagem\n};"
+      },
+      "id": "4ba43572-2977-4b74-84a2-c0375fd9043b",
+      "name": "Parse Resposta IA",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -304,
+        1248
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "upsert",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "sessao"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "chave",
+              "keyValue": "offset_candidatos"
+            }
+          ]
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "chave": "offset_candidatos",
+            "valor": "={{ $json.novoOffset.toString() }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "7d40499f-2bfe-4ff3-9e4a-436c2ca5db09",
+      "name": "Atualizar Sessao",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1,
+      "position": [
+        -128,
+        1248
+      ]
+    },
+    {
+      "parameters": {
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "historico"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "role": "user",
+            "mensagem": "={{ $('Parse Resposta IA').item.json.mensagemUsuario }}",
+            "timestamp": "={{ new Date().toISOString() }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "04cfcaaa-3685-4e76-a8ae-ea6ef0c71064",
+      "name": "Salvar Historico User",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1,
+      "position": [
+        48,
+        1248
+      ]
+    },
+    {
+      "parameters": {
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "historico"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "role": "assistant",
+            "mensagem": "={{ $('Parse Resposta IA').item.json.texto }}",
+            "timestamp": "={{ new Date().toISOString() }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "87c2b2cf-5bdb-4028-ab79-e5481543c443",
+      "name": "Salvar Historico Assistant",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1,
+      "position": [
+        224,
+        1248
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "SEU_CHAT_ID_TELEGRAM",
+        "text": "={{ $('Parse Resposta IA').item.json.texto }}",
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "Markdown"
+        }
+      },
+      "id": "19795752-a573-4c7d-a3a0-9091fc1c7881",
+      "name": "Responder Telegram",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        400,
+        1248
+      ],
+      "webhookId": "ecde7502-94f2-4fb2-ae53-f3c997c82344",
+      "credentials": {
+        "telegramApi": {
+          "id": "X9sX65mqNk8ybcV2",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "numberInputs": 4
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        -432,
+        944
+      ],
+      "id": "a7e19981-f662-4ed2-89da-4f1b919c4d58",
+      "name": "Merge"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        -448,
+        432
+      ],
+      "id": "595e118b-0460-48b6-be5d-84647485a8d5",
+      "name": "Merge1"
+    },
+    {
+      "parameters": {
+        "jsCode": "const mensagem = $('Identificar Comando').item.json.mensagem.trim();\nconst mensagemLower = mensagem.toLowerCase();\nconst chatId = $('Identificar Comando').item.json.chatId;\n\nconst aprovados = (() => { try { return $('Buscar Candidatos Email').all().map(i => i.json).filter(i => i && i.email); } catch(e) { return []; } })();\nconst rejeitados = (() => { try { return $('Buscar Rejeitados Email').all().map(i => i.json).filter(i => i && i.email); } catch(e) { return []; } })();\n\nconst subcomando = mensagem.replace('/email', '').trim();\n\n// Se /email sem subcomando, mostra lista\nif (!subcomando) {\n  const todos = [\n    ...aprovados.map(c => ({...c, tipo: 'aprovado'})),\n    ...rejeitados.map(c => ({...c, tipo: 'rejeitado'}))\n  ].sort((a, b) => (b.score || 0) - (a.score || 0));\n\n  if (todos.length === 0) {\n    return [{ chatId, enviar: false, texto: '❌ Nenhum candidato cadastrado ainda.' }];\n  }\n\n  const listagem = todos.map((c, i) =>\n    `${i+1}. *${c.nome}* — Score: ${c.score || 0} — ${c.tipo === 'aprovado' ? '✅ Aprovado' : '❌ Rejeitado'}`\n  ).join('\\n');\n\n  const texto = `📋 *Candidatos encontrados:*\\n\\n${listagem}\\n\\nPara enviar email use:\\n• /email todos\\n• /email aprovados\\n• /email rejeitados\\n• /email nome do candidato`;\n\n  return [{ chatId, enviar: false, texto }];\n}\n\n// Com subcomando — filtra e envia\nlet candidatosParaEnviar = [];\n\nif (subcomando.toLowerCase() === 'todos') {\n  candidatosParaEnviar = [\n    ...aprovados.map(c => ({...c, tipo: 'aprovado'})),\n    ...rejeitados.map(c => ({...c, tipo: 'rejeitado'}))\n  ];\n} else if (subcomando.toLowerCase() === 'aprovados') {\n  candidatosParaEnviar = aprovados.map(c => ({...c, tipo: 'aprovado'}));\n} else if (subcomando.toLowerCase() === 'rejeitados') {\n  candidatosParaEnviar = rejeitados.map(c => ({...c, tipo: 'rejeitado'}));\n} else {\n  const todos = [\n    ...aprovados.map(c => ({...c, tipo: 'aprovado'})),\n    ...rejeitados.map(c => ({...c, tipo: 'rejeitado'}))\n  ];\n  candidatosParaEnviar = todos.filter(c =>\n    c.nome && c.nome.toLowerCase().includes(subcomando.toLowerCase())\n  );\n}\n\nif (candidatosParaEnviar.length === 0) {\n  return [{ \n    chatId, \n    enviar: false, \n    texto: `❌ Nenhum candidato encontrado para: \"${subcomando}\"\\n\\nUse:\\n/email todos\\n/email aprovados\\n/email rejeitados\\n/email nome do candidato`\n  }];\n}\n\nreturn candidatosParaEnviar.map(c => {\n  const aprovado = c.tipo === 'aprovado';\n  const assunto = aprovado\n    ? 'Parabéns! Você foi aprovado'\n    : 'Retorno sobre sua candidatura';\n  const corpo = aprovado\n    ? `Olá ${c.nome},\\n\\nFicamos felizes em informar que seu perfil foi aprovado em nossa análise inicial. Em breve entraremos em contato para os próximos passos do processo seletivo.\\n\\nAtenciosamente,\\nEquipe de Recrutamento`\n    : `Olá ${c.nome},\\n\\nAgradecemos seu interesse e o tempo dedicado ao processo. Após análise do seu perfil, informamos que não seguiremos com sua candidatura neste momento.\\n\\nDesejamos sucesso na sua jornada profissional.\\n\\nAtenciosamente,\\nEquipe de Recrutamento`;\n\n  return {\n    chatId,\n    enviar: true,\n    email: c.email,\n    nome: c.nome,\n    tipo: c.tipo,\n    assunto,\n    corpo\n  };\n});"
+      },
+      "id": "1208cfc2-a6a2-4e8a-91c0-b5e82190a963",
+      "name": "Processar Comando Email",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -256,
+        432
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.enviar }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              },
+              "id": "check-enviar-001"
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "003e0c23-eb29-4320-8290-d65366f1923c",
+      "name": "Verificar Se Envia",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -80,
+        432
+      ]
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.email }}",
+        "subject": "={{ $json.assunto }}",
+        "message": "={{ $json.corpo }}",
+        "options": {}
+      },
+      "id": "5894eddc-b309-4bbe-957c-feecf863851b",
+      "name": "Enviar Email",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        128,
+        416
+      ],
+      "webhookId": "8c0616cb-4424-4529-b1c8-8b750dea7b53",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "AtJx6kFgCXTodihM",
+          "name": "Gmail OAuth2 API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "SEU_CHAT_ID_TELEGRAM",
+        "text": "={{ '✅ Email enviado para ' + $('Processar Comando Email').item.json.nome + ' (' + $('Processar Comando Email').item.json.tipo + ')' }}",
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "Markdown"
+        }
+      },
+      "id": "e3876cab-2b8d-41ee-a1f9-b84725a187f0",
+      "name": "Confirmar Envio Email",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        320,
+        416
+      ],
+      "webhookId": "32dc7238-356b-466e-b374-2a30b5497519",
+      "credentials": {
+        "telegramApi": {
+          "id": "X9sX65mqNk8ybcV2",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "SEU_CHAT_ID_TELEGRAM",
+        "text": "={{ $json.texto }}",
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "Markdown"
+        }
+      },
+      "id": "a3885b8b-b05e-4785-bc9f-200d29a0f8f8",
+      "name": "Responder Erro Email",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        128,
+        640
+      ],
+      "webhookId": "925b9ee3-1bc2-4d2f-ad3e-2267987e98fe",
+      "credentials": {
+        "telegramApi": {
+          "id": "X9sX65mqNk8ybcV2",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        592,
+        1248
+      ],
+      "id": "38257b61-f2be-46d0-96b5-623f1493fef1",
+      "name": "No Operation, do nothing"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        320,
+        640
+      ],
+      "id": "3c8dbf03-13e4-47d7-827f-caad22113d63",
+      "name": "No Operation, do nothing1"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        512,
+        416
+      ],
+      "id": "7933ef23-17dc-4c45-a3d6-334226ac5009",
+      "name": "No Operation, do nothing2"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        400,
+        112
+      ],
+      "id": "ad14f03d-2373-4efb-91e8-33ff6198653f",
+      "name": "No Operation, do nothing3"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        208,
+        -112
+      ],
+      "id": "872d9024-a9a5-4a3c-ae48-f603d50cabaf",
+      "name": "No Operation, do nothing4"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Telegram Trigger": {
+      "main": [
+        [
+          {
+            "node": "Identificar Comando",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Identificar Comando": {
+      "main": [
+        [
+          {
+            "node": "Roteador",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Roteador": {
+      "main": [
+        [
+          {
+            "node": "Buscar Criterios Atuais",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Buscar Candidatos Email",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Buscar Rejeitados Email",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Buscar Historico",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Buscar Todos Candidatos",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Buscar Todos Rejeitados",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Buscar Sessao",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar Criterios Atuais": {
+      "main": [
+        [
+          {
+            "node": "Verificar Subcomando Criterios",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verificar Subcomando Criterios": {
+      "main": [
+        [
+          {
+            "node": "Roteador Criterios",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Roteador Criterios": {
+      "main": [
+        [
+          {
+            "node": "Responder Criterios Atuais",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Atualizar Criterios",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Atualizar Criterios": {
+      "main": [
+        [
+          {
+            "node": "Confirmar Atualizacao Criterios",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar Candidatos Email": {
+      "main": [
+        [
+          {
+            "node": "Merge1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar Rejeitados Email": {
+      "main": [
+        [
+          {
+            "node": "Merge1",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Buscar Historico": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar Todos Candidatos": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Buscar Todos Rejeitados": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "Buscar Sessao": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 3
+          }
+        ]
+      ]
+    },
+    "Preparar Contexto IA": {
+      "main": [
+        [
+          {
+            "node": "Gemini Conversa",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini Conversa": {
+      "main": [
+        [
+          {
+            "node": "Parse Resposta IA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Resposta IA": {
+      "main": [
+        [
+          {
+            "node": "Atualizar Sessao",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Atualizar Sessao": {
+      "main": [
+        [
+          {
+            "node": "Salvar Historico User",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Salvar Historico User": {
+      "main": [
+        [
+          {
+            "node": "Salvar Historico Assistant",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Salvar Historico Assistant": {
+      "main": [
+        [
+          {
+            "node": "Responder Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Preparar Contexto IA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge1": {
+      "main": [
+        [
+          {
+            "node": "Processar Comando Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Processar Comando Email": {
+      "main": [
+        [
+          {
+            "node": "Verificar Se Envia",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verificar Se Envia": {
+      "main": [
+        [
+          {
+            "node": "Enviar Email",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Responder Erro Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar Email": {
+      "main": [
+        [
+          {
+            "node": "Confirmar Envio Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Responder Telegram": {
+      "main": [
+        [
+          {
+            "node": "No Operation, do nothing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Responder Erro Email": {
+      "main": [
+        [
+          {
+            "node": "No Operation, do nothing1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Confirmar Envio Email": {
+      "main": [
+        [
+          {
+            "node": "No Operation, do nothing2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Confirmar Atualizacao Criterios": {
+      "main": [
+        [
+          {
+            "node": "No Operation, do nothing3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Responder Criterios Atuais": {
+      "main": [
+        [
+          {
+            "node": "No Operation, do nothing4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "ebf12773-1588-4414-8f9b-9ed5c109ffd2",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "a44884a302bfc762bfed93d141793cb9e97674954f2be220d7d0e97c74a35c24"
+  },
+  "id": "gJMTe1iY4pDPCIC8",
+  "tags": []
+}
