@@ -116,3 +116,26 @@ Variáveis a configurar antes de importar os workflows (os arquivos já vêm com
 - `Wf2_Assistente_Telegram.json` — export do assistente conversacional
 
 Importe ambos diretamente no n8n (`Import from File`), configure as credenciais e ajuste os placeholders antes de ativar.
+
+## ⚙️ Como configurar
+
+### Pré-requisitos
+- Uma instância do n8n (n8n Cloud ou instalação própria)
+- Conta Google com Gmail (autenticação OAuth2)
+- Chave de API do Google Gemini
+- Bot do Telegram criado pelo @BotFather (token do bot)
+
+### Passo a passo
+1. No n8n, vá em **Workflows > Import from file** e importe os dois arquivos:
+   - `WorkFlow_Trigger_Email.json` (triagem automática de currículos)
+   - `WorkFlow_Assistente_Telegram.json` (assistente via Telegram)
+2. Crie as credenciais usadas pelos nós: **Gmail OAuth2**, **Google Gemini (API)** e **Telegram API**.
+3. Crie as **Data Tables** usadas pelos fluxos (candidatos, critérios, sessão e histórico) e confira os nomes configurados nos nós.
+4. Revise os critérios de aprovação e ajuste-os ao perfil da vaga.
+5. Ative os dois workflows.
+
+### Como testar
+- Envie um e-mail com um currículo em PDF para a caixa monitorada e confira se o candidato é analisado e registrado.
+- Envie uma mensagem ao bot do Telegram para consultar candidatos e alterar os critérios.
+
+> As credenciais não estão incluídas neste repositório; cada usuário deve criar as suas.
